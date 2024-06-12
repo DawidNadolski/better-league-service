@@ -4,15 +4,17 @@ module.exports = buildSchema(`
     type RootMutation {
         createUser(input: UserSignupInput!): User!
         createMatch(input: MatchInput!): Match!
-        createTeam(teamName: String): Team!
         placeBet(input: BetInput!): Bet!
+        updateUserTeam(teamId: ID!): User!
     }
 
     type RootQuery {
         logIn(input: UserLoginInput!): AuthorizationData!
-        user: User!
-        bets(userId: ID!): [Bet!]!
+        getUser(userId: ID!): UserData!
+        users: [UserData!]!
+        userBets(userId: ID!): [Bet!]!
         matches: [Match]!
+        teams: [Team!]!
     }
 
     schema {
@@ -28,6 +30,14 @@ module.exports = buildSchema(`
         password: String
         points: Int!
         bets: [Bet]
+        winningTeam: Team
+    }
+
+    type UserData {
+        id: ID!
+        name: String!
+        bets: [Bet]
+        winningTeam: Team
     }
 
     type Bet {
@@ -35,6 +45,8 @@ module.exports = buildSchema(`
         homeTeamGoals: Int!
         awayTeamGoals: Int!
         match: Match!
+        isResolved: Boolean!
+        points: Int!
         better: User!
     }
 
@@ -46,13 +58,15 @@ module.exports = buildSchema(`
         awayTeamGoals: Int!
         startDate: Date!
         hasEnded: Boolean!
+        stage: String!
     }
 
     type Team {
         id: ID!
         name: String!
-        goalsScored: Int!
-        goalsConceded: Int!
+        group: String!
+        isPlaying: Boolean!
+        didWin: Boolean!
     }
 
     type AuthorizationData {
@@ -69,6 +83,8 @@ module.exports = buildSchema(`
     input MatchInput {
         homeTeamName: String!
         awayTeamName: String!
+        stage: String!
+        date: Date!
     }
 
     input UserSignupInput {

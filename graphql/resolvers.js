@@ -8,17 +8,21 @@ const Team = require('../models/team');
 const Bet = require('../models/bet');
 const scalarTypes = require('../graphql/scalar-types');
 const { graphql } = require('graphql');
+const bet = require('../models/bet');
 
 module.exports = {
-	createUser: async function({ input }, req) {
+	// MUTATIONS
+	createUser: async function ({ input }, req) {
 		const name = input.name;
 		const password = input.password;
 		const confirmedPassword = input.confirmedPassword
-		//TODO: Validations and error handling
 
 		const existingUser = await User.findOne({ name: name });
 		if (existingUser) {
-			throw Error('User exists already!');
+			throw Error('Użytkownik o podanym nicku istnieje!');
+		}
+		if (password !== confirmedPassword) {
+			throw Error('Hasła nie są ze sobą zgodne!')
 		}
 		const hashedPassword = await bcrypt.hash(password, 12);
 		const user = new User({
@@ -33,71 +37,22 @@ module.exports = {
 		}
 	},
 
-	logIn: async function({ input }, req) {
-		const name = input.name;
-		const password = input.password;
-
-		const user = await User.findOne({ name: name });
-		if (!user) {
-			console.log("Couldn't find user with given username");
-			const error = new Error('User not found.');
-            error.code = 401;
-            throw error;
-		}
-
-		const doPasswordsMatch = await bcrypt.compare(password, user.password);
-		if (!doPasswordsMatch) {
-			console.log("Password doesn't match given user");
-			const error = new Error("Password is incorrect");
-            error.code = 401;
-            throw error;
-		}
-		
-		const token = jwt.sign({
-            userId: user._id.toString(),
-            email: user.email
-        }, 'somesupersecretsecret', { expiresIn: '1h' });
-
-		return {
-			token: token,
-			userId: user._id.toString()
-		}
-	},
-
-    user: async function(_, req) {
-		return {
-			_id: "id.toString()",
-			name: "Dawid",
-			email: "test@test.pl"
-		}
-    },
-
-	matches: async function(_, req) {
-		console.log(req.isAuth)
-		const matches = await Match.find()
-			.populate('homeTeam')
-			.populate('awayTeam')
-
-		return matches.map(match => {
-			return {
-				...match._doc,
-				id: match._id.toString()
-			}
-		})
-	},
-
-    createMatch: async function({ input }, req) {
+	createMatch: async function ({ input }, req) {
 		const homeTeamName = input.homeTeamName
 		const awayTeamName = input.awayTeamName
+		const startDate = input.date
+		const stage = input.stage
 		const homeTeam = await Team.findOne({ name: homeTeamName });
 		const awayTeam = await Team.findOne({ name: awayTeamName });
 
 		const match = new Match({
 			homeTeam: homeTeam,
 			awayTeam: awayTeam,
-			startDate: Date()
+			startDate: Date.parse(startDate),
+			stage: stage
 		})
 		const savedMatch = await match.save();
+		console.log(savedMatch)
 
 		return {
 			...savedMatch._doc,
@@ -105,59 +60,33 @@ module.exports = {
 		}
 	},
 
-	bets: async function({ userId }, req) {
-		const bets = await Bet
-			.find({ better: userId })
-			.populate({ 
-				path: 'match',
-				populate: {
-				  path: 'homeTeam',
-				  model: 'Team'
-				}
-			 })
-			 .populate({ 
-				path: 'match',
-				populate: {
-				  path: 'awayTeam',
-				  model: 'Team'
-				}
-			 })
-		
-		return bets.map(bet => {
-			return {
-				...bet._doc,
-				id: bet._id.toString()
-			}
-		})
-	},
+	placeBet: async function ({ input }, req) {
+		if (!req.isAuth) {
+			const error = new Error("User not authenticated")
+			throw error;
+		}
+		const userId = req.userId;
+		if (!userId) {
+			const error = new Error("User not authenticated")
+			throw error;
+		}
 
-	placeBet: async function({ input }, req) {
-		//TODO: Replace with authenticated user
-		const userId = "663eaf479b23e651a88c9a68"
 		const user = await User.findById(userId);
 		const match = await Match.findById(input.matchId)
 			.populate('homeTeam')
 			.populate('awayTeam')
 
+		const currentDate = new Date()
+		const matchStartDate = match.startDate;
+		console.log(currentDate)
+		console.log(matchStartDate)
+
+		if (matchStartDate < currentDate) {
+			const error = new Error("Nie można typować po rozpoczęciu spotkania!")
+			throw error;
+		}
+
 		let existingBet = await Bet.findOne({ match: input.matchId, better: userId })
-			.populate('better')
-			.populate({ 
-				path: 'match',
-				populate: {
-				  path: 'homeTeam',
-				  model: 'Team'
-				}
-			 })
-			 .populate({ 
-				path: 'match',
-				populate: {
-				  path: 'awayTeam',
-				  model: 'Team'
-				}
-			 })
-
-		console.log(existingBet);
-
 		if (existingBet) {
 			existingBet.homeTeamGoals = input.homeTeamGoals;
 			existingBet.awayTeamGoals = input.awayTeamGoals;
@@ -178,30 +107,215 @@ module.exports = {
 		user.bets.push(placedBet);
 		await user.save();
 
-		console.log(placedBet)
-
 		return {
 			...placedBet._doc,
 			id: placedBet._id.toString()
 		}
 	},
 
-	createTeam: async function({ teamName }, req) {
-		const exisitngTeam = await Team.findOne({ name: teamName });
-		if (exisitngTeam) {
-			const error = new Error();
-			error.message = "Team already exists";
+	updateUserTeam: async function ({ teamId }, req) {
+		const userId = req.userId;
+		const user = await User.findById(userId)
+			.populate('winningTeam')
+		const team = await Team.findById(teamId);
+
+		user.winningTeam = team;
+		const savedUser = await user.save();
+		console.log(savedUser)
+
+		return {
+			...savedUser._doc,
+			id: savedUser._id.toString()
+		}
+	},
+
+	// QUERIES
+	logIn: async function ({ input }, req) {
+		const name = input.name;
+		const password = input.password;
+
+		const user = await User.findOne({ name: name });
+		if (!user) {
+			const error = new Error('Nie znaleziono użytkownika o podanym nicku!');
+			error.code = 401;
 			throw error;
 		}
 
-		const team = new Team( { name: teamName });
-		const savedTeam = await team.save();
+		const doPasswordsMatch = await bcrypt.compare(password, user.password);
+		if (!doPasswordsMatch) {
+			const error = new Error("Nieprawidłowe hasło!");
+			error.code = 401;
+			throw error;
+		}
+
+		const token = jwt.sign({
+			userId: user._id.toString(),
+			name: user.name
+		}, 'somesupersecretsecret');
 
 		return {
-			...savedTeam._doc,
-			id: savedTeam._id.toString()
+			token: token,
+			userId: user._id.toString()
 		}
 	},
-	
+
+	getUser: async function ({ userId }, req) {
+		const user = await User.findById(userId)
+			.populate('bets')
+			.populate('winningTeam')
+
+		if (!user) {
+			const error = new Error('Nie znaleziono użytkownika o podanym nicku!');
+			error.code = 401;
+			throw error;
+		}
+
+		return {
+			id: user._id.toString(),
+			name: user.name,
+			bets: user.bets,
+			winningTeam: user.winningTeam
+		}
+	},
+
+	users: async function (_, req) {
+		const bets = await Bet.find()
+		for (const bet of bets) {
+			if (!bet.isResolved && bet.match.hasEnded) {
+				didResolve = true
+				const points = calculatePoints(bet)
+				bet.points = points
+				bet.isResolved = true
+				savedBet = await bet.save();
+				console.log(savedBet);
+			}
+		}
+
+		const users = await User.find()
+			.populate('bets')
+
+		return users.map(user => {
+			return {
+				id: user._id.toString(),
+				name: user.name,
+				bets: user.bets,
+				winningTeam: user.winningTeam
+			}
+		})
+	},
+
+	matches: async function (_, req) {
+		const matches = await Match.find()
+			.populate('homeTeam')
+			.populate('awayTeam')
+
+		return matches.map(match => {
+			return {
+				...match._doc,
+				id: match._id.toString()
+			}
+		})
+	},
+
+	teams: async function (_, req) {
+		const teams = await Team.find()
+
+		return teams.map(team => {
+			return {
+				...team._doc,
+				id: team._id.toString()
+			}
+		})
+	},
+
+	userBets: async function ({ userId }, req) {
+		const bets = await Bet
+			.find({ better: userId })
+			.populate({
+				path: 'match',
+				populate: {
+					path: 'homeTeam',
+					model: 'Team'
+				}
+			})
+			.populate({
+				path: 'match',
+				populate: {
+					path: 'awayTeam',
+					model: 'Team'
+				}
+			})
+
+		const didResolved = false
+		for (const bet of bets) {
+			if (!bet.isResolved && bet.match.hasEnded) {
+				didResolve = true
+				const points = calculatePoints(bet)
+				bet.points = points
+				bet.isResolved = true
+				savedBet = await bet.save();
+				console.log(savedBet);
+			}
+		}
+
+		if (didResolved) {
+			const updatedBets = await Bet
+				.find({ better: userId })
+				.populate({
+					path: 'match',
+					populate: {
+						path: 'homeTeam',
+						model: 'Team'
+					}
+				})
+				.populate({
+					path: 'match',
+					populate: {
+						path: 'awayTeam',
+						model: 'Team'
+					}
+				})
+			return updatedBets.map(bet => {
+				return {
+					...bet._doc,
+					id: bet._id.toString()
+				}
+			})
+		}
+
+		return bets.map(bet => {
+			return {
+				...bet._doc,
+				id: bet._id.toString()
+			}
+		})
+	},
+
 	scalarTypes
+}
+
+function calculatePoints(bet) {
+	if (
+		bet.homeTeamGoals === bet.match.homeTeamGoals &&
+		bet.awayTeamGoals === bet.match.awayTeamGoals
+	) {
+		return 3
+	} else if (
+		bet.match.homeTeamGoals > bet.match.awayTeamGoals &&
+		bet.homeTeamGoals > bet.awayTeamGoals
+	) {
+		return 1
+	} else if (
+		bet.match.homeTeamGoals === bet.match.awayTeamGoals &&
+		bet.homeTeamGoals === bet.awayTeamGoals
+	) {
+		return 1
+	} else if (
+		bet.match.homeTeamGoals < bet.match.awayTeamGoals &&
+		bet.homeTeamGoals < bet.awayTeamGoals
+	) {
+		return 1
+	} else {
+		return 0
+	}
 }

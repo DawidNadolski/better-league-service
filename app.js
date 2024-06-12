@@ -3,7 +3,7 @@ const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 const { createHandler } = require('graphql-http/lib/use/express');
 const expressPlayground = require('graphql-playground-middleware-express').default;
-const { ruruHTML } = require('ruru/server');
+const helmet = require('helmet')
 
 const graphqlSchema = require('./graphql/schema');
 const graphqlResolver = require('./graphql/resolvers');
@@ -12,6 +12,7 @@ const auth = require('./middleware/auth');
 const app = express();
 
 app.use(bodyParser.json()); // application/json
+app.use(helmet());
 
 app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -62,9 +63,10 @@ app.use((error, req, res, next) => {
     res.status(status).json( { message: message, data: data });
 });
 
-mongoose.connect('mongodb+srv://dawidnadolski:4I8XcXByoQlixd8h@betterleaguecluster.ojrdnvg.mongodb.net/?retryWrites=true&w=majority&appName=BetterLeagueCluster')
+const MONGO_URL = `mongodb+srv://dawidnadolski:4I8XcXByoQlixd8h@betterleaguecluster.ojrdnvg.mongodb.net/?retryWrites=true&w=majority&appName=BetterLeagueCluster`
+mongoose.connect(MONGO_URL)
     .then(_ => {
-        app.listen(8080);
+        app.listen(process.env.PORT || 8080);
     })
     .catch(error => {
         console.log(error);

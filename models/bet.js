@@ -17,7 +17,15 @@ const betSchema = new Schema({
     better: {
         type: Schema.Types.ObjectId,
         ref: 'User'
-    } 
+    },
+    isResolved: {
+        type: Boolean,
+        default: false
+    },
+    points: {
+        type: Number,
+        default: 0
+    }
 });
 
 module.exports = mongoose.model('Bet', betSchema);

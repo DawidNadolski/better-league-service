@@ -22,6 +22,7 @@
     "graphql-http": "^1.22.1",
     "graphql-playground-middleware-express": "^1.7.23",
     "graphql-server-express": "^1.4.1",
+    "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "kill-port": "^2.0.1",
     "mongodb": "^6.5.0",

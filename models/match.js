@@ -27,6 +27,10 @@ const matchSchema = new Schema({
     hasEnded: {
         type: Boolean,
         default: false
+    },
+    stage: {
+        type: String,
+        required: true
     }
 });
 

@@ -6,13 +6,17 @@ const teamSchema = new Schema({
         type: String,
         required: true
     },
-    goalsScored: {
-        type: Number,
-        default: 0
+    isPlaying: {
+        type: Boolean,
+        default: true
     },
-    goalsConceded: {
-        type: Number,
-        default: 0
+    didWin: {
+        type: Boolean,
+        default: false
+    },
+    group: {
+        type: String,
+        required: true
     }
 });
 
