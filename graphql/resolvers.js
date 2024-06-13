@@ -193,6 +193,7 @@ module.exports = {
 
 		const users = await User.find()
 			.populate('bets')
+			.populate('winningTeam')
 
 		return users.map(user => {
 			return {
