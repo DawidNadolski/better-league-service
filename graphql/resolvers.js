@@ -197,10 +197,8 @@ module.exports = {
 
 		return users.map(user => {
 			return {
-				id: user._id.toString(),
-				name: user.name,
-				bets: user.bets,
-				winningTeam: user.winningTeam
+				...user._doc,
+				id: user._id.toString()
 			}
 		})
 	},
