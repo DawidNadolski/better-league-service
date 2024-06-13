@@ -247,7 +247,7 @@ module.exports = {
 				}
 			})
 
-		const didResolved = false
+		let didResolve = false
 		for (const bet of bets) {
 			if (!bet.isResolved && bet.match.hasEnded) {
 				didResolve = true
@@ -259,7 +259,7 @@ module.exports = {
 			}
 		}
 
-		if (didResolved) {
+		if (didResolve) {
 			const updatedBets = await Bet
 				.find({ better: userId })
 				.populate({
