@@ -192,7 +192,26 @@ module.exports = {
 		}
 
 		const users = await User.find()
-			.populate('bets')
+			.populate({
+				path: 'bets',
+				populate: {
+					path: 'match',
+					populate: {
+						path: 'homeTeam',
+						model: 'Team'
+					}
+				}
+			})
+			.populate({
+				path: 'bets',
+				populate: {
+					path: 'match',
+					populate: {
+						path: 'awayTeam',
+						model: 'Team'
+					}
+				}
+			})
 			.populate('winningTeam')
 
 		return users.map(user => {
