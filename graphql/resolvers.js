@@ -129,6 +129,20 @@ module.exports = {
 		}
 	},
 
+	endMatch: async function ({ matchId}, req) {
+		const match = await Match.findById(matchId)
+		if (!match) {
+			const error = new Error("Couldn't find match with given ID")
+			throw error
+		}
+		match.hasEnded = true
+		const savedMatch = await match.save()
+		return {
+			...savedMatch._doc,
+			id: savedMatch._id.toString()
+		}
+	},
+
 	// QUERIES
 	logIn: async function ({ input }, req) {
 		const name = input.name;
