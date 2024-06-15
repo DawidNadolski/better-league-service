@@ -194,9 +194,22 @@ module.exports = {
 
 	users: async function (_, req) {
 		const bets = await Bet.find()
+			.populate({
+				path: 'match',
+				populate: {
+					path: 'homeTeam',
+					model: 'Team'
+				}
+			})
+			.populate({
+				path: 'match',
+				populate: {
+					path: 'awayTeam',
+					model: 'Team'
+				}
+			})
 		for (const bet of bets) {
 			if (!bet.isResolved && bet.match.hasEnded) {
-				didResolve = true
 				const points = calculatePoints(bet)
 				bet.points = points
 				bet.isResolved = true
