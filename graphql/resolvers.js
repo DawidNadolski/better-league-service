@@ -147,6 +147,11 @@ module.exports = {
 		const updatedPassword = await bcrypt.hash(input.password, 12);
 		user.password = updatedPassword;
 		await user.save();
+
+		return {
+			...user._doc,
+			id: user._id.toString()
+		}
 	},
 
 	// QUERIES
