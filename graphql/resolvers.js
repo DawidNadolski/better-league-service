@@ -125,7 +125,7 @@ module.exports = {
 		}
 	},
 
-	endMatch: async function ({ matchId}, req) {
+	endMatch: async function ({ matchId }, req) {
 		const match = await Match.findById(matchId)
 		if (!match) {
 			const error = new Error("Couldn't find match with given ID")
@@ -139,18 +139,19 @@ module.exports = {
 		}
 	},
 
-	updateUserPassword: async function ( { input }, req) {
-		const user = User.find({ name: input.name });
+	updateUserPassword: async function ({ input }, req) {
+		const user = await User.find({ name: input.name });
 		if (!user) {
-			throw Error("Couldn't find user with given name")
+			const error = new Error("Couldn't find user with given name")
+			throw error
 		}
 		const updatedPassword = await bcrypt.hash(input.password, 12);
 		user.password = updatedPassword;
-		_ = await user.save();
+		const savedUser = await user.save();
 
 		return {
-			...user._doc,
-			id: user._id.toString()
+			...savedUser._doc,
+			id: savedUser._id.toString()
 		}
 	},
 
