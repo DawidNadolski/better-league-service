@@ -140,7 +140,7 @@ module.exports = {
 	},
 
 	updateUserPassword: async function ({ input }, req) {
-		const user = await User.find({ name: input.name });
+		const user = await User.findOne({ name: input.name });
 		if (!user) {
 			const error = new Error("Couldn't find user with given name")
 			throw error
