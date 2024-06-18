@@ -140,7 +140,7 @@ module.exports = {
 	},
 
 	updateUserPassword: async function ( { input }, req) {
-		const user = User.find(user => user.name === input.name);
+		const user = User.find({ name: input.name });
 		if (!user) {
 			throw Error("Couldn't find user with given name")
 		}
