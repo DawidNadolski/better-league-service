@@ -52,7 +52,6 @@ module.exports = {
 			stage: stage
 		})
 		const savedMatch = await match.save();
-		console.log(savedMatch)
 
 		return {
 			...savedMatch._doc,
@@ -78,8 +77,6 @@ module.exports = {
 
 		const currentDate = new Date()
 		const matchStartDate = match.startDate;
-		console.log(currentDate)
-		console.log(matchStartDate)
 
 		if (matchStartDate < currentDate) {
 			const error = new Error("Nie można typować po rozpoczęciu spotkania!")
@@ -121,7 +118,6 @@ module.exports = {
 
 		user.winningTeam = team;
 		const savedUser = await user.save();
-		console.log(savedUser)
 
 		return {
 			...savedUser._doc,
@@ -224,7 +220,6 @@ module.exports = {
 				bet.points = points
 				bet.isResolved = true
 				savedBet = await bet.save();
-				console.log(savedBet);
 			}
 		}
 
@@ -309,7 +304,6 @@ module.exports = {
 				bet.points = points
 				bet.isResolved = true
 				savedBet = await bet.save();
-				console.log(savedBet);
 			}
 		}
 
