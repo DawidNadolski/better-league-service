@@ -7,6 +7,7 @@ module.exports = buildSchema(`
         placeBet(input: BetInput!): Bet!
         updateUserTeam(teamId: ID!): User!
         endMatch(matchId: ID!): Match!
+        updateUserPassword(input: UserLoginInput!): User!
     }
 
     type RootQuery {

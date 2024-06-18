@@ -143,6 +143,16 @@ module.exports = {
 		}
 	},
 
+	updateUserPassword: async function ( { input }, req) {
+		const user = User.find(user => user.name === input.name);
+		if (!user) {
+			throw Error("Couldn't find user with given name")
+		}
+		const updatedPassword = await bcrypt.hash(input.password, 12);
+		user.password = updatedPassword;
+		await user.save();
+	},
+
 	// QUERIES
 	logIn: async function ({ input }, req) {
 		const name = input.name;
