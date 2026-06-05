@@ -7,16 +7,19 @@ module.exports = buildSchema(`
         placeBet(input: BetInput!): Bet!
         updateUserTeam(teamId: ID!): User!
         endMatch(matchId: ID!): Match!
+        updateMatchResult(input: MatchResultInput!): Match!
+        declareTournamentWinner(teamId: ID!): Team!
         updateUserPassword(input: UserLoginInput!): User!
     }
 
     type RootQuery {
         logIn(input: UserLoginInput!): AuthorizationData!
         getUser(userId: ID!): UserData!
-        users: [UserData!]!
-        userBets(userId: ID!): [Bet!]!
-        matches: [Match]!
-        teams: [Team!]!
+        users(tournament: String): [UserData!]!
+        userBets(userId: ID!, tournament: String): [Bet!]!
+        matches(tournament: String): [Match]!
+        teams(tournament: String): [Team!]!
+        tournamentHasStarted(tournament: String): Boolean!
     }
 
     schema {
@@ -40,6 +43,7 @@ module.exports = buildSchema(`
         name: String!
         bets: [Bet]
         winningTeam: Team
+        winnerPoints: Int!
     }
 
     type Bet {
@@ -61,6 +65,7 @@ module.exports = buildSchema(`
         startDate: Date!
         hasEnded: Boolean!
         stage: String!
+        tournament: String!
     }
 
     type Team {
@@ -69,11 +74,15 @@ module.exports = buildSchema(`
         group: String!
         isPlaying: Boolean!
         didWin: Boolean!
+        tournament: String!
+        countryCode: String!
     }
 
     type AuthorizationData {
         token: String!
         userId: String!
+        userName: String!
+        isAdmin: Boolean!
     }
 
     input BetInput {
@@ -87,6 +96,12 @@ module.exports = buildSchema(`
         awayTeamName: String!
         stage: String!
         date: Date!
+    }
+
+    input MatchResultInput {
+        matchId: ID!
+        homeTeamGoals: Int!
+        awayTeamGoals: Int!
     }
 
     input UserSignupInput {

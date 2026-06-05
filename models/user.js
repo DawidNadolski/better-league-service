@@ -17,7 +17,7 @@ const userSchema = new Schema({
     winningTeam: {
         type: Schema.Types.ObjectId,
         ref: 'Team',
-        default: '666990e59e0cddad4b6f15c7'
+        default: null
     },
     bets: [ 
         {

@@ -31,6 +31,10 @@ const matchSchema = new Schema({
     stage: {
         type: String,
         required: true
+    },
+    tournament: {
+        type: String,
+        required: true
     }
 });
 

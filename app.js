@@ -34,7 +34,8 @@ app.use(
         context: (req, res) => {
             return {
                 isAuth: req.raw.isAuth,
-                userId: req.raw.userId
+                userId: req.raw.userId,
+                userName: req.raw.userName,
             }
         },
         formatError(error) {
@@ -66,7 +67,11 @@ app.use((error, req, res, next) => {
 const MONGO_URL = `mongodb+srv://dawidnadolski:4I8XcXByoQlixd8h@betterleaguecluster.ojrdnvg.mongodb.net/?retryWrites=true&w=majority&appName=BetterLeagueCluster`
 mongoose.connect(MONGO_URL)
     .then(_ => {
-        app.listen(process.env.PORT || 8080);
+        const port = process.env.PORT || 8080;
+        app.listen(port, () => {
+            console.log(`Server running on http://localhost:${port}`);
+            console.log(`GraphQL playground: http://localhost:${port}/playground`);
+        });
     })
     .catch(error => {
         console.log(error);

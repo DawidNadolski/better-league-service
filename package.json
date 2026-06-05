@@ -5,7 +5,11 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon app.js"
+    "start": "nodemon app.js",
+    "migrate:euro2024": "node scripts/migrate-euro2024.js",
+    "seed:wc2026-teams": "node scripts/seed-wc2026-teams.js",
+    "backfill:country-codes": "node scripts/backfill-country-codes.js",
+    "set-winner:euro2024": "node scripts/set-euro2024-winner.js"
   },
   "repository": {
     "type": "git",

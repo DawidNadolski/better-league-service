@@ -17,6 +17,17 @@ const teamSchema = new Schema({
     group: {
         type: String,
         required: true
+    },
+    tournament: {
+        type: String,
+        required: true
+    },
+    countryCode: {
+        type: String,
+        required: true,
+        uppercase: true,
+        minlength: 2,
+        maxlength: 2
     }
 });
 

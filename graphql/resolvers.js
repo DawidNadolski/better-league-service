@@ -7,8 +7,11 @@ const Match = require('../models/match');
 const Team = require('../models/team');
 const Bet = require('../models/bet');
 const scalarTypes = require('../graphql/scalar-types');
-const { graphql } = require('graphql');
-const bet = require('../models/bet');
+const { resolveTournament, ACTIVE_TOURNAMENT } = require('../constants/tournaments');
+const { calculateWinnerPoints } = require('../constants/scoring');
+const { hasTournamentStarted } = require('../utils/tournament');
+const { isAdminUser, requireAdmin } = require('../constants/admin');
+const { calculatePoints, resolveBetsForMatch } = require('../utils/bets');
 
 module.exports = {
 	// MUTATIONS
@@ -38,25 +41,38 @@ module.exports = {
 	},
 
 	createMatch: async function ({ input }, req) {
+		await requireAdmin(req);
+
 		const homeTeamName = input.homeTeamName
 		const awayTeamName = input.awayTeamName
 		const startDate = input.date
 		const stage = input.stage
-		const homeTeam = await Team.findOne({ name: homeTeamName });
-		const awayTeam = await Team.findOne({ name: awayTeamName });
+		const tournament = ACTIVE_TOURNAMENT
+
+		if (homeTeamName === awayTeamName) {
+			throw new Error('Drużyna gospodarzy i gości muszą być różne!');
+		}
+
+		const homeTeam = await Team.findOne({ name: homeTeamName, tournament });
+		const awayTeam = await Team.findOne({ name: awayTeamName, tournament });
+
+		if (!homeTeam || !awayTeam) {
+			throw new Error('Nie znaleziono drużyny w bieżącym turnieju!');
+		}
 
 		const match = new Match({
 			homeTeam: homeTeam,
 			awayTeam: awayTeam,
 			startDate: Date.parse(startDate),
-			stage: stage
+			stage: stage,
+			tournament: tournament
 		})
 		const savedMatch = await match.save();
+		const populatedMatch = await Match.findById(savedMatch._id)
+			.populate('homeTeam')
+			.populate('awayTeam')
 
-		return {
-			...savedMatch._doc,
-			id: savedMatch._id.toString()
-		}
+		return formatMatch(populatedMatch)
 	},
 
 	placeBet: async function ({ input }, req) {
@@ -80,6 +96,11 @@ module.exports = {
 
 		if (matchStartDate < currentDate) {
 			const error = new Error("Nie można typować po rozpoczęciu spotkania!")
+			throw error;
+		}
+
+		if (match.tournament !== ACTIVE_TOURNAMENT) {
+			const error = new Error("Nie można typować w zakończonym turnieju!")
 			throw error;
 		}
 
@@ -111,10 +132,33 @@ module.exports = {
 	},
 
 	updateUserTeam: async function ({ teamId }, req) {
+		if (!req.isAuth || !req.userId) {
+			throw new Error('User not authenticated');
+		}
+
 		const userId = req.userId;
 		const user = await User.findById(userId)
 			.populate('winningTeam')
 		const team = await Team.findById(teamId);
+
+		if (!team || team.tournament !== ACTIVE_TOURNAMENT) {
+			throw new Error('Nie można wybrać drużyny spoza bieżącego turnieju!');
+		}
+
+		const currentTeamId = user.winningTeam
+			? user.winningTeam._id.toString()
+			: null;
+
+		if (currentTeamId === teamId) {
+			return {
+				...user._doc,
+				id: user._id.toString()
+			}
+		}
+
+		if (await hasTournamentStarted(team.tournament)) {
+			throw new Error('Nie można zmienić typu na mistrza po rozpoczęciu turnieju!');
+		}
 
 		user.winningTeam = team;
 		const savedUser = await user.save();
@@ -126,6 +170,8 @@ module.exports = {
 	},
 
 	endMatch: async function ({ matchId }, req) {
+		await requireAdmin(req);
+
 		const match = await Match.findById(matchId)
 		if (!match) {
 			const error = new Error("Couldn't find match with given ID")
@@ -133,9 +179,57 @@ module.exports = {
 		}
 		match.hasEnded = true
 		const savedMatch = await match.save()
+		await resolveBetsForMatch(savedMatch)
+		const populatedMatch = await Match.findById(savedMatch._id)
+			.populate('homeTeam')
+			.populate('awayTeam')
+		return formatMatch(populatedMatch)
+	},
+
+	updateMatchResult: async function ({ input }, req) {
+		await requireAdmin(req);
+
+		const { matchId, homeTeamGoals, awayTeamGoals } = input;
+
+		if (homeTeamGoals < 0 || awayTeamGoals < 0) {
+			throw new Error('Liczba bramek nie może być ujemna!');
+		}
+
+		const match = await Match.findById(matchId)
+		if (!match) {
+			throw new Error('Nie znaleziono meczu o podanym ID!');
+		}
+
+		match.homeTeamGoals = homeTeamGoals;
+		match.awayTeamGoals = awayTeamGoals;
+		match.hasEnded = true;
+		const savedMatch = await match.save();
+		await resolveBetsForMatch(savedMatch);
+
+		const populatedMatch = await Match.findById(savedMatch._id)
+			.populate('homeTeam')
+			.populate('awayTeam')
+		return formatMatch(populatedMatch)
+	},
+
+	declareTournamentWinner: async function ({ teamId }, req) {
+		await requireAdmin(req);
+
+		const team = await Team.findById(teamId);
+		if (!team || team.tournament !== ACTIVE_TOURNAMENT) {
+			throw new Error('Nie znaleziono drużyny w bieżącym turnieju!');
+		}
+
+		await Team.updateMany(
+			{ tournament: team.tournament },
+			{ $set: { didWin: false } }
+		);
+		team.didWin = true;
+		const savedTeam = await team.save();
+
 		return {
-			...savedMatch._doc,
-			id: savedMatch._id.toString()
+			...savedTeam._doc,
+			id: savedTeam._id.toString()
 		}
 	},
 
@@ -181,7 +275,9 @@ module.exports = {
 
 		return {
 			token: token,
-			userId: user._id.toString()
+			userId: user._id.toString(),
+			userName: user.name,
+			isAdmin: isAdminUser(user.name)
 		}
 	},
 
@@ -204,7 +300,9 @@ module.exports = {
 		}
 	},
 
-	users: async function (_, req) {
+	users: async function ({ tournament }, req) {
+		const selectedTournament = resolveTournament(tournament);
+
 		const bets = await Bet.find()
 			.populate({
 				path: 'match',
@@ -221,11 +319,14 @@ module.exports = {
 				}
 			})
 		for (const bet of bets) {
+			if (!bet.match || bet.match.tournament !== selectedTournament) {
+				continue;
+			}
 			if (!bet.isResolved && bet.match.hasEnded) {
 				const points = calculatePoints(bet)
 				bet.points = points
 				bet.isResolved = true
-				savedBet = await bet.save();
+				await bet.save();
 			}
 		}
 
@@ -253,28 +354,34 @@ module.exports = {
 			.populate('winningTeam')
 
 		return users.map(user => {
+			const tournamentBets = filterBetsByTournament(user.bets, selectedTournament);
+			const winningTeam =
+				user.winningTeam && user.winningTeam.tournament === selectedTournament
+					? user.winningTeam
+					: null;
+
 			return {
 				...user._doc,
-				id: user._id.toString()
+				id: user._id.toString(),
+				bets: tournamentBets,
+				winningTeam,
+				winnerPoints: calculateWinnerPoints(winningTeam)
 			}
 		})
 	},
 
-	matches: async function (_, req) {
-		const matches = await Match.find()
+	matches: async function ({ tournament }, req) {
+		const selectedTournament = resolveTournament(tournament);
+		const matches = await Match.find({ tournament: selectedTournament })
 			.populate('homeTeam')
 			.populate('awayTeam')
 
-		return matches.map(match => {
-			return {
-				...match._doc,
-				id: match._id.toString()
-			}
-		})
+		return matches.map(match => formatMatch(match))
 	},
 
-	teams: async function (_, req) {
-		const teams = await Team.find()
+	teams: async function ({ tournament }, req) {
+		const selectedTournament = resolveTournament(tournament);
+		const teams = await Team.find({ tournament: selectedTournament })
 
 		return teams.map(team => {
 			return {
@@ -284,7 +391,13 @@ module.exports = {
 		})
 	},
 
-	userBets: async function ({ userId }, req) {
+	tournamentHasStarted: async function ({ tournament }, req) {
+		return hasTournamentStarted(tournament);
+	},
+
+	userBets: async function ({ userId, tournament }, req) {
+		const selectedTournament = resolveTournament(tournament);
+
 		const bets = await Bet
 			.find({ better: userId })
 			.populate({
@@ -302,14 +415,18 @@ module.exports = {
 				}
 			})
 
+		const tournamentBets = bets.filter(
+			bet => bet.match && bet.match.tournament === selectedTournament
+		);
+
 		let didResolve = false
-		for (const bet of bets) {
+		for (const bet of tournamentBets) {
 			if (!bet.isResolved && bet.match.hasEnded) {
 				didResolve = true
 				const points = calculatePoints(bet)
 				bet.points = points
 				bet.isResolved = true
-				savedBet = await bet.save();
+				await bet.save();
 			}
 		}
 
@@ -330,7 +447,7 @@ module.exports = {
 						model: 'Team'
 					}
 				})
-			return updatedBets.map(bet => {
+			return filterBetsByTournament(updatedBets, selectedTournament).map(bet => {
 				return {
 					...bet._doc,
 					id: bet._id.toString()
@@ -338,7 +455,7 @@ module.exports = {
 			})
 		}
 
-		return bets.map(bet => {
+		return tournamentBets.map(bet => {
 			return {
 				...bet._doc,
 				id: bet._id.toString()
@@ -349,28 +466,13 @@ module.exports = {
 	scalarTypes
 }
 
-function calculatePoints(bet) {
-	if (
-		bet.homeTeamGoals === bet.match.homeTeamGoals &&
-		bet.awayTeamGoals === bet.match.awayTeamGoals
-	) {
-		return 3
-	} else if (
-		bet.match.homeTeamGoals > bet.match.awayTeamGoals &&
-		bet.homeTeamGoals > bet.awayTeamGoals
-	) {
-		return 1
-	} else if (
-		bet.match.homeTeamGoals === bet.match.awayTeamGoals &&
-		bet.homeTeamGoals === bet.awayTeamGoals
-	) {
-		return 1
-	} else if (
-		bet.match.homeTeamGoals < bet.match.awayTeamGoals &&
-		bet.homeTeamGoals < bet.awayTeamGoals
-	) {
-		return 1
-	} else {
-		return 0
+function filterBetsByTournament(bets, tournament) {
+	return bets.filter(bet => bet.match && bet.match.tournament === tournament);
+}
+
+function formatMatch(match) {
+	return {
+		...match._doc,
+		id: match._id.toString()
 	}
 }
