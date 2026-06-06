@@ -9,7 +9,8 @@
     "migrate:euro2024": "node scripts/migrate-euro2024.js",
     "seed:wc2026-teams": "node scripts/seed-wc2026-teams.js",
     "backfill:country-codes": "node scripts/backfill-country-codes.js",
-    "set-winner:euro2024": "node scripts/set-euro2024-winner.js"
+    "set-winner:euro2024": "node scripts/set-euro2024-winner.js",
+    "migrate:winning-teams": "node scripts/migrate-winning-teams.js"
   },
   "repository": {
     "type": "git",

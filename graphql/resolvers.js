@@ -12,6 +12,11 @@ const { calculateWinnerPoints } = require('../constants/scoring');
 const { hasTournamentStarted } = require('../utils/tournament');
 const { isAdminUser, requireAdmin } = require('../constants/admin');
 const { calculatePoints, resolveBetsForMatch } = require('../utils/bets');
+const {
+	getWinningTeamForTournament,
+	getWinningTeamIdForTournament,
+	setUserWinningTeam,
+} = require('../utils/winningTeam');
 
 module.exports = {
 	// MUTATIONS
@@ -138,6 +143,7 @@ module.exports = {
 
 		const userId = req.userId;
 		const user = await User.findById(userId)
+			.populate({ path: 'winningTeams.team' })
 			.populate('winningTeam')
 		const team = await Team.findById(teamId);
 
@@ -145,9 +151,7 @@ module.exports = {
 			throw new Error('Nie można wybrać drużyny spoza bieżącego turnieju!');
 		}
 
-		const currentTeamId = user.winningTeam
-			? user.winningTeam._id.toString()
-			: null;
+		const currentTeamId = getWinningTeamIdForTournament(user, team.tournament);
 
 		if (currentTeamId === teamId) {
 			return {
@@ -160,7 +164,7 @@ module.exports = {
 			throw new Error('Nie można zmienić typu na mistrza po rozpoczęciu turnieju!');
 		}
 
-		user.winningTeam = team;
+		setUserWinningTeam(user, team);
 		const savedUser = await user.save();
 
 		return {
@@ -284,6 +288,7 @@ module.exports = {
 	getUser: async function ({ userId }, req) {
 		const user = await User.findById(userId)
 			.populate('bets')
+			.populate({ path: 'winningTeams.team' })
 			.populate('winningTeam')
 
 		if (!user) {
@@ -296,7 +301,7 @@ module.exports = {
 			id: user._id.toString(),
 			name: user.name,
 			bets: user.bets,
-			winningTeam: user.winningTeam
+			winningTeam: getWinningTeamForTournament(user, ACTIVE_TOURNAMENT)
 		}
 	},
 
@@ -351,14 +356,12 @@ module.exports = {
 					}
 				}
 			})
+			.populate({ path: 'winningTeams.team' })
 			.populate('winningTeam')
 
 		return users.map(user => {
 			const tournamentBets = filterBetsByTournament(user.bets, selectedTournament);
-			const winningTeam =
-				user.winningTeam && user.winningTeam.tournament === selectedTournament
-					? user.winningTeam
-					: null;
+			const winningTeam = getWinningTeamForTournament(user, selectedTournament);
 
 			return {
 				...user._doc,

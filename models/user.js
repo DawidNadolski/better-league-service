@@ -19,7 +19,18 @@ const userSchema = new Schema({
         ref: 'Team',
         default: null
     },
-    bets: [ 
+    winningTeams: [{
+        tournament: {
+            type: String,
+            required: true
+        },
+        team: {
+            type: Schema.Types.ObjectId,
+            ref: 'Team',
+            required: true
+        }
+    }],
+    bets: [
         {
             type: Schema.Types.ObjectId,
             ref: 'Bet'
